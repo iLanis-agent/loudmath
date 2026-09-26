@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoudMath - daily noise dose truth-teller</title>
+<style>
+  :root { --bg:#100e14; --card:#1a1722; --line:#2c2638; --ink:#e9e4f2; --dim:#9d93b5; --acc:#b79ced; --warn:#f6b26b; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; padding:32px 18px 64px; }
+  .wrap { max-width:1060px; margin:0 auto; }
+  h1 { font-size:26px; letter-spacing:.5px; }
+  h1 span { color:var(--acc); }
+  .home { float:right; color:var(--dim); text-decoration:none; font-size:13px; margin-top:8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:22px; margin-top:20px; }
+  .card h2 { font-size:15px; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:14px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .row > div { flex:1; min-width:140px; }
+  label { display:block; font-size:12px; color:var(--dim); margin-bottom:4px; }
+  input, select { width:100%; background:#131020; border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px 10px; font:inherit; }
+  button { background:var(--acc); color:#1b1030; border:0; border-radius:9px; padding:10px 20px; font:600 15px system-ui; cursor:pointer; }
+  button.ghost { background:#131020; color:var(--acc); border:1px solid var(--line); padding:8px 14px; font-size:13px; }
+  .err { color:#ff8a80; font-size:14px; margin-top:10px; min-height:20px; }
+  .note { color:var(--dim); font-size:12.5px; margin-top:10px; }
+  table { width:100%; border-collapse:collapse; margin-top:6px; font-size:14px; }
+  th { text-align:left; color:var(--dim); font-size:12px; text-transform:uppercase; letter-spacing:.5px; padding:8px 10px; border-bottom:1px solid var(--line); }
+  td { padding:6px 10px; border-bottom:1px solid #241f30; vertical-align:middle; }
+  td input, td select { padding:6px 8px; font-size:14px; }
+  .del { background:none; border:0; color:var(--dim); cursor:pointer; font-size:16px; padding:4px 8px; }
+  .del:hover { color:#ff8a80; }
+  .verdict { background:#171224; border:1px solid #3d2f66; border-radius:12px; padding:18px 20px; margin-top:20px; font-size:16px; line-height:1.6; display:none; }
+  .verdict b { color:var(--acc); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-top:20px; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .stat .v { font-size:22px; font-weight:700; }
+  .stat .k { color:var(--dim); font-size:12px; margin-top:4px; }
+  .bar-row { display:flex; align-items:center; gap:10px; margin-top:8px; font-size:13.5px; }
+  .bar-row .lbl { width:170px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bar { flex:1; height:14px; background:#131020; border-radius:7px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--acc); border-radius:7px; }
+  .bar-row .g { width:150px; text-align:right; color:var(--dim); }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="home" href="index.html">home</a>
+  <h1>Loud<span>Math</span></h1>
+
+  <div class="card">
+    <h2>Today's sounds</h2>
+    <table>
+      <thead><tr><th style="width:32%">Sound</th><th>Level (dB)</th><th>Minutes</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="ghost" id="add">+ add sound</button>
+      <button class="ghost" id="preset1">commute + concert</button>
+      <button class="ghost" id="preset2">quiet WFH day</button>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <div style="max-width:220px;"><label>Days per week like this</label><input id="days" type="number" value="1" min="0.5" max="7" step="0.5"></div>
+    </div>
+    <div style="margin-top:14px;"><button id="go">Total my dose</button></div>
+    <div class="err" id="err"></div>
+    <div class="note">Levels follow NIOSH: 85 dB for 8 hours is a full daily dose, and every +3 dB halves the safe time. 88 dB gets 4 hours, 100 dB gets 15 minutes. Below 80 dB is free.</div>
+  </div>
+
+  <div class="verdict" id="verdict"></div>
+
+  <div class="stats hidden" id="statsWrap">
+    <div class="stat"><div class="v" id="sDose"></div><div class="k">of a safe daily dose</div></div>
+    <div class="stat"><div class="v" id="sBand"></div><div class="k">verdict</div></div>
+    <div class="stat"><div class="v" id="sLoud"></div><div class="k">loudest sound - daily allowance</div></div>
+    <div class="stat"><div class="v" id="sBite"></div><div class="k">biggest budget bite</div></div>
+    <div class="stat"><div class="v" id="sWeek"></div><div class="k">weekly dose at this pattern</div></div>
+  </div>
+
+  <div class="card hidden" id="doseCard">
+    <h2>Where the dose went</h2>
+    <div id="doseBars"></div>
+  </div>
+
+  <div class="card">
+    <h2>Why your ears keep a budget</h2>
+    <p style="font-size:14px;">
+      Hearing damage is dose, not drama: it adds up across every loud thing in the day, and once hair cells are gone they do not grow back.
+      NIOSH sets the budget at <b style="color:var(--acc)">85 dB for 8 hours</b>, with the <b style="color:var(--acc)">3 dB exchange rate</b> - every 3 dB louder halves the safe time.
+      That makes a 100 dB motorcycle a 15-minute-a-day sound and a 110 dB concert a 1.9-minute one.
+      Headphones at full volume sit near 95-105 dB at the eardrum, which is why the loudest hour of most people's day is the one they chose.
+    </p>
+  </div>
+</div>
+<script src="engine.js"></script>
+<script>
+(function(){
+  var tbody = document.getElementById('rows');
+  var PRESETS = LoudMathEngine.PRESETS;
+
+  function presetOptions(sel){
+    PRESETS.forEach(function(p){
+      var o = document.createElement('option');
+      o.value = p.name;
+      o.textContent = p.name + ' (' + p.db + ' dB)';
+      sel.appendChild(o);
+    });
+  }
+
+  function addRow(e){
+    e = e || {};
+    var tr = document.createElement('tr');
+    var selHtml = '<select class="e-preset"><option value="">custom...</option></select>';
+    tr.innerHTML =
+      '<td><input class="e-name" placeholder="e.g. Subway ride" value="' + (e.name || '') + '"><div style="margin-top:4px">' + selHtml + '</div></td>' +
+      '<td><input class="e-db" type="number" min="30" max="140" style="width:90px" value="' + (e.db || '') + '"></td>' +
+      '<td><input class="e-min" type="number" min="1" max="1440" style="width:90px" value="' + (e.minutes || '') + '"></td>' +
+      '<td><button class="del" title="remove">x</button></td>';
+    var sel = tr.querySelector('.e-preset');
+    presetOptions(sel);
+    sel.addEventListener('change', function(){
+      if (!sel.value) return;
+      var p = PRESETS.find(function(x){ return x.name === sel.value; });
+      tr.querySelector('.e-name').value = p.name;
+      tr.querySelector('.e-db').value = p.db;
+    });
+    tr.querySelector('.del').addEventListener('click', function(){ tr.remove(); });
+    tbody.appendChild(tr);
+  }
+
+  function loadPreset(list){ tbody.innerHTML = ''; list.forEach(addRow); }
+
+  document.getElementById('add').addEventListener('click', function(){ addRow(); });
+  document.getElementById('preset1').addEventListener('click', function(){
+    document.getElementById('days').value = '1';
+    loadPreset([
+      { name:'Subway platform', db:90, minutes:25 },
+      { name:'Office chatter', db:65, minutes:420 },
+      { name:'Rock concert', db:110, minutes:90 },
+      { name:'Headphones, loud', db:95, minutes:45 }
+    ]);
+  });
+  document.getElementById('preset2').addEventListener('click', function(){
+    document.getElementById('days').value = '5';
+    loadPreset([
+      { name:'Quiet home', db:50, minutes:600 },
+      { name:'Headphones, loud', db:95, minutes:120 },
+      { name:'Lawn mower', db:95, minutes:20 }
+    ]);
+  });
+
+  document.getElementById('go').addEventListener('click', function(){
+    var errEl = document.getElementById('err'); errEl.textContent = '';
+    var trs = tbody.querySelectorAll('tr');
+    var entries = [];
+    for (var i = 0; i < trs.length; i++){
+      var name = trs[i].querySelector('.e-name').value.trim();
+      var db = trs[i].querySelector('.e-db').value;
+      var min = trs[i].querySelector('.e-min').value;
+      if (!name && !db && !min) continue;
+      entries.push({ name: name, db: Number(db), minutes: Number(min) });
+    }
+    var r;
+    try { r = LoudMathEngine.analyze({ entries: entries, daysPerWeek: document.getElementById('days').value }); }
+    catch(e){ errEl.textContent = e.message; return; }
+    document.getElementById('sDose').textContent = r.dosePct + '%';
+    document.getElementById('sBand').textContent = r.band;
+    document.getElementById('sLoud').textContent = r.loudest.db + ' dB - ' + (r.loudest.maxMinutes == null ? 'free' : r.loudest.maxMinutes + ' min');
+    document.getElementById('sBite').textContent = r.biggestDose.doseShare > 0 ? r.biggestDose.name + ' (' + r.biggestDose.doseShare + '%)' : 'none';
+    document.getElementById('sWeek').textContent = r.weeklyPct + '%';
+    document.getElementById('statsWrap').classList.remove('hidden');
+
+    var v = document.getElementById('verdict');
+    v.innerHTML = r.verdict.replace(/([\d.]+% of a safe daily noise dose|easy on the ears|within budget|at the limit|over the limit|\d+ min a day)/g, '<b>$1</b>');
+    v.style.display = 'block';
+
+    var bars = document.getElementById('doseBars');
+    bars.innerHTML = '';
+    var maxShare = r.rows.length ? Math.max(r.rows[0].doseShare, 1) : 1;
+    r.rows.forEach(function(row){
+      var div = document.createElement('div');
+      div.className = 'bar-row';
+      div.innerHTML = '<div class="lbl">' + row.name + '</div>' +
+        '<div class="bar"><i style="width:' + Math.round(row.doseShare / maxShare * 100) + '%"></i></div>' +
+        '<div class="g">' + row.doseShare + '% of dose</div>';
+      bars.appendChild(div);
+    });
+    document.getElementById('doseCard').classList.remove('hidden');
+  });
+
+  loadPreset([
+    { name:'Subway platform', db:90, minutes:30 },
+    { name:'Headphones, loud', db:95, minutes:60 }
+  ]);
+})();
+</script>
+</body>
+</html>
